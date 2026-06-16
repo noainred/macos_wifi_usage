@@ -1,0 +1,21 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.eggs/
+build/
+dist/
+.venv/
+venv/
+
+# netusage 런타임 데이터
+*.db
+*.db-journal
+.netusage/
+monitor.log
+monitor.err.log
+
+# OS / 에디터
+.DS_Store
+.idea/
+.vscode/

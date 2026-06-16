@@ -1,0 +1,11 @@
+{
+  "sample_interval_seconds": 60,
+  "wifi_interface": "en0",
+  "db_path": "~/.netusage/netusage.db",
+  "ping_timeout_ms": 1500,
+  "named_networks": [
+    { "name": "Home",   "ping": "192.168.0.1" },
+    { "name": "Office", "ping": "10.0.0.1" },
+    { "name": "Lab",    "gateway": "172.16.5.1" }
+  ]
+}

@@ -1,0 +1,33 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  참고용 LaunchAgent 템플릿.
+  실제 파일은 `python3 -m netusage install` 이 절대경로/현재 파이썬으로 자동 생성한다.
+  수동 사용 시 아래 __PLACEHOLDER__ 들을 직접 채울 것.
+-->
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>Label</key>
+    <string>com.user.netusage</string>
+    <key>ProgramArguments</key>
+    <array>
+        <string>__PYTHON__</string>
+        <string>-m</string>
+        <string>netusage</string>
+        <string>monitor</string>
+    </array>
+    <key>EnvironmentVariables</key>
+    <dict>
+        <key>PYTHONPATH</key>
+        <string>__PROJECT_DIR__</string>
+    </dict>
+    <key>RunAtLoad</key>
+    <true/>
+    <key>KeepAlive</key>
+    <true/>
+    <key>StandardOutPath</key>
+    <string>__HOME__/.netusage/monitor.log</string>
+    <key>StandardErrorPath</key>
+    <string>__HOME__/.netusage/monitor.err.log</string>
+</dict>
+</plist>
