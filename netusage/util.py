@@ -1,6 +1,7 @@
 """여러 모듈에서 공유하는 작은 헬퍼들."""
 from __future__ import annotations
 
+import re
 import subprocess
 import time
 from typing import List, Optional, Tuple
@@ -11,6 +12,25 @@ _UNITS = ["B", "KiB", "MiB", "GiB", "TiB", "PiB"]
 def now_ts() -> int:
     """현재 시각을 Unix epoch 초(int)로 반환한다."""
     return int(time.time())
+
+
+def parse_time_spec(spec: str) -> int:
+    """'7d', '24h', '2w', 'YYYY-MM-DD', 'YYYY-MM-DD HH:MM' 을 epoch 초로 변환."""
+    spec = spec.strip()
+    now = int(time.time())
+    m = re.fullmatch(r"(\d+)\s*([smhdw])", spec.lower())
+    if m:
+        n = int(m.group(1))
+        mult = {"s": 1, "m": 60, "h": 3600, "d": 86400, "w": 604800}[m.group(2)]
+        return now - n * mult
+    for fmt in ("%Y-%m-%d %H:%M", "%Y-%m-%d"):
+        try:
+            return int(time.mktime(time.strptime(spec, fmt)))
+        except ValueError:
+            continue
+    raise ValueError(
+        f"시간 형식을 해석할 수 없습니다: {spec!r} (예: 24h, 7d, 2w, 2026-06-01)"
+    )
 
 
 def human_bytes(n: int) -> str:

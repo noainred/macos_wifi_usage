@@ -56,6 +56,11 @@ class Storage:
             os.makedirs(os.path.dirname(self.db_path) or ".", exist_ok=True)
         self.conn = sqlite3.connect(self.db_path)
         self.conn.row_factory = sqlite3.Row
+        # 웹 포탈(요청 스레드)과 모니터 스레드가 같은 파일에 동시에 접근하므로
+        # 잠금 대기 시간을 주고, 파일 DB 는 WAL 로 동시 읽기/쓰기를 매끄럽게 한다.
+        self.conn.execute("PRAGMA busy_timeout=5000")
+        if self.db_path != ":memory:":
+            self.conn.execute("PRAGMA journal_mode=WAL")
         self.conn.executescript(SCHEMA)
         self.conn.commit()
 

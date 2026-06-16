@@ -3,9 +3,7 @@ from __future__ import annotations
 
 import argparse
 import os
-import re
 import sys
-import time
 from typing import List, Optional
 
 from . import __version__, ifstats, netinfo, report
@@ -15,28 +13,7 @@ from .config import (
     write_default_config,
 )
 from .storage import GROUP_KEYS, Storage
-from .util import human_bytes
-
-
-# ---------------------------------------------------------------------------
-# 시간 표현 파싱
-# ---------------------------------------------------------------------------
-def parse_time_spec(spec: str) -> int:
-    """'7d', '24h', '2w', 'YYYY-MM-DD', 'YYYY-MM-DD HH:MM' 을 epoch 초로 변환."""
-    spec = spec.strip()
-    now = int(time.time())
-    m = re.fullmatch(r"(\d+)\s*([smhdw])", spec.lower())
-    if m:
-        n = int(m.group(1))
-        mult = {"s": 1, "m": 60, "h": 3600, "d": 86400, "w": 604800}[m.group(2)]
-        return now - n * mult
-    for fmt in ("%Y-%m-%d %H:%M", "%Y-%m-%d"):
-        try:
-            return int(time.mktime(time.strptime(spec, fmt)))
-        except ValueError:
-            continue
-    raise ValueError(f"시간 형식을 해석할 수 없습니다: {spec!r} "
-                     f"(예: 24h, 7d, 2w, 2026-06-01)")
+from .util import human_bytes, parse_time_spec
 
 
 def _resolve_range(args) -> tuple[Optional[int], Optional[int]]:
@@ -222,6 +199,20 @@ def cmd_install(args, config) -> int:
     return 0
 
 
+def cmd_web(args, config) -> int:
+    from .webportal import serve
+
+    serve(
+        config,
+        host=args.host,
+        port=args.port,
+        config_path=args.config or DEFAULT_CONFIG_PATH,
+        autostart=not args.no_monitor,
+        open_browser=args.open,
+    )
+    return 0
+
+
 def cmd_config(args, config) -> int:
     import json
     print(f"설정 파일 경로: {args.config or DEFAULT_CONFIG_PATH}")
@@ -270,6 +261,15 @@ def build_parser() -> argparse.ArgumentParser:
 
     n = sub.add_parser("networks", help="설정된 named_networks 와 현재 식별 결과")
     n.set_defaults(func=cmd_networks)
+
+    w = sub.add_parser("web", help="웹 포탈 실행(동작/수정/조회를 브라우저에서)")
+    w.add_argument("--host", default="127.0.0.1",
+                   help="바인드 호스트 [기본: 127.0.0.1 (로컬 전용)]")
+    w.add_argument("--port", type=int, default=8765, help="포트 [기본: 8765]")
+    w.add_argument("--no-monitor", action="store_true",
+                   help="시작 시 모니터를 자동 실행하지 않음")
+    w.add_argument("--open", action="store_true", help="브라우저 자동 열기")
+    w.set_defaults(func=cmd_web)
 
     i = sub.add_parser("install", help="백그라운드 실행용 launchd LaunchAgent 생성")
     i.add_argument("--print", action="store_true", help="파일을 쓰지 않고 plist 출력만")

@@ -1,8 +1,14 @@
-"""샘플링 루프: 카운터를 읽어 현재 네트워크에 사용량 delta 를 귀속시킨다."""
+"""샘플링 루프: 카운터를 읽어 현재 네트워크에 사용량 delta 를 귀속시킨다.
+
+CLI 포그라운드 실행(시그널로 종료)과 웹 포탈의 백그라운드 스레드 실행
+(threading.Event 로 종료)을 모두 지원한다.
+"""
 from __future__ import annotations
 
 import signal
-from typing import Optional
+import threading
+import time
+from typing import Callable, Optional
 
 from . import ifstats, netinfo
 from .storage import Storage
@@ -50,30 +56,35 @@ def sample_once(
             "iface": iface,
             "conn_type": ident.conn_type,
             "network": ident.network,
+            "ssid": ident.ssid,
             "rx": d_rx,
             "tx": d_tx,
         }
     return recorded
 
 
-class _Stopper:
-    """SIGINT/SIGTERM 을 받으면 루프를 멈추게 하는 플래그."""
+def monitor_loop(
+    storage: Storage,
+    config: dict,
+    verbose: bool = False,
+    stop_event: Optional[threading.Event] = None,
+    on_sample: Optional[Callable[[Optional[dict]], None]] = None,
+) -> None:
+    """주기적으로 sample_once 를 호출한다.
 
-    def __init__(self) -> None:
-        self.stop = False
-
-    def __call__(self, *_args) -> None:
-        self.stop = True
-
-
-def monitor_loop(storage: Storage, config: dict, verbose: bool = False) -> None:
-    """주기적으로 sample_once 를 호출한다. 신호를 받으면 정리 후 종료."""
-    import time
-
+    stop_event 가 주어지면 그것이 set 될 때까지 돈다(스레드용).
+    없으면 직접 SIGINT/SIGTERM 핸들러를 설치한다(메인 스레드 포그라운드용).
+    """
     interval = max(5, int(config.get("sample_interval_seconds", 60)))
-    stopper = _Stopper()
-    signal.signal(signal.SIGINT, stopper)
-    signal.signal(signal.SIGTERM, stopper)
+
+    if stop_event is None:
+        stop_event = threading.Event()
+
+        def _handler(*_args):
+            stop_event.set()
+
+        signal.signal(signal.SIGINT, _handler)
+        signal.signal(signal.SIGTERM, _handler)
 
     # 시작 시 첫 delta 가 비정상적으로 커지지 않도록 기준값만 잡는다.
     sample_once(storage, config, record=False)
@@ -81,15 +92,17 @@ def monitor_loop(storage: Storage, config: dict, verbose: bool = False) -> None:
         print(f"netusage monitor started (interval={interval}s, db={storage.db_path})",
               flush=True)
 
-    while not stopper.stop:
-        # 신호에 빠르게 반응하도록 1초 단위로 나눠 잔다.
+    while not stop_event.is_set():
+        # 종료에 빠르게 반응하도록 1초 단위로 나눠 잔다.
         slept = 0
-        while slept < interval and not stopper.stop:
+        while slept < interval and not stop_event.is_set():
             time.sleep(1)
             slept += 1
-        if stopper.stop:
+        if stop_event.is_set():
             break
         rec = sample_once(storage, config, record=True)
+        if on_sample is not None:
+            on_sample(rec)
         if verbose and rec:
             print(
                 f"[{rec['ts']}] {rec['network']} ({rec['conn_type']}) "
@@ -98,3 +111,66 @@ def monitor_loop(storage: Storage, config: dict, verbose: bool = False) -> None:
             )
     if verbose:
         print("netusage monitor stopped", flush=True)
+
+
+class MonitorController:
+    """모니터 루프를 백그라운드 스레드로 시작/중지한다(웹 포탈용).
+
+    각 스레드는 자신의 SQLite 연결을 갖는다(스레드 간 연결 공유 회피).
+    config 는 웹 포탈과 공유하는 dict 객체로, 설정 저장 시 갱신되면 반영된다.
+    """
+
+    def __init__(self, config: dict):
+        self.config = config
+        self._thread: Optional[threading.Thread] = None
+        self._stop = threading.Event()
+        self._lock = threading.Lock()
+        self.started_at: Optional[int] = None
+        self.last_sample: Optional[dict] = None
+        self.last_error: Optional[str] = None
+
+    def is_running(self) -> bool:
+        return self._thread is not None and self._thread.is_alive()
+
+    def start(self) -> bool:
+        with self._lock:
+            if self.is_running():
+                return False
+            self._stop.clear()
+            self.last_error = None
+            self.started_at = now_ts()
+            self._thread = threading.Thread(target=self._run, daemon=True)
+            self._thread.start()
+            return True
+
+    def _run(self) -> None:
+        try:
+            storage = Storage(self.config["db_path"])
+        except Exception as exc:  # pragma: no cover - 방어용
+            self.last_error = str(exc)
+            return
+        try:
+            monitor_loop(
+                storage,
+                self.config,
+                stop_event=self._stop,
+                on_sample=self._on_sample,
+            )
+        except Exception as exc:  # pragma: no cover - 방어용
+            self.last_error = str(exc)
+        finally:
+            storage.close()
+
+    def _on_sample(self, rec: Optional[dict]) -> None:
+        if rec:
+            self.last_sample = rec
+
+    def stop(self, timeout: float = 10.0) -> bool:
+        with self._lock:
+            running = self.is_running()
+            self._stop.set()
+            thread = self._thread
+        if thread is not None:
+            thread.join(timeout=timeout)
+        self.started_at = None
+        return running

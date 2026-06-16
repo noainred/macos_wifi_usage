@@ -57,6 +57,42 @@ netusage status
 
 ---
 
+## 웹 포탈 (동작 · 수정 · 조회)
+
+브라우저에서 모니터를 **동작**(시작/중지/즉시 샘플)시키고, 설정을 **수정**하고,
+사용량을 **조회**(리포트/CSV·JSON 내보내기)할 수 있습니다.
+
+```bash
+python3 -m netusage web                 # http://127.0.0.1:8765 (모니터 자동 시작)
+python3 -m netusage web --open          # 브라우저 자동 열기
+python3 -m netusage web --port 9000 --no-monitor   # 포트 변경, 모니터 자동시작 안 함
+```
+
+포탈 화면 구성:
+
+- **현재 상태 · 동작**: 현재 네트워크/SSID/게이트웨이, 모니터 실행 배지, `모니터 시작/중지`,
+  `지금 한 번 샘플` 버튼. 상태는 5초마다 자동 갱신됩니다.
+- **조회 · 리포트**: 집계 기준(`network/ssid/type/.../day/month`)·기간을 골라 표로 보고,
+  `CSV/JSON 내보내기` 링크로 원본을 받습니다.
+- **수정 · 설정**: `config.json` 을 textarea 에서 바로 편집·저장합니다. 저장 시 모니터가
+  실행 중이면 자동 재시작되어 `sample_interval_seconds`·`named_networks` 변경이 즉시 반영됩니다.
+
+> 기본은 **127.0.0.1(로컬 전용)** 바인드입니다. 설정을 편집할 수 있으므로 다른 기기에
+> 노출하지 마세요. 외부 바인드(`--host 0.0.0.0`)는 신뢰된 네트워크에서만 사용하세요.
+
+REST API(직접 호출도 가능):
+
+| 메서드 · 경로 | 동작 |
+|---|---|
+| `GET /api/status` | 현재 식별/카운터/모니터 상태/누적 합계 |
+| `GET /api/report?by=&since=&until=` | 집계(JSON) |
+| `GET /api/export?format=csv\|json&since=&until=` | 원본 내보내기 |
+| `GET /api/config` · `POST /api/config` | 설정 조회 · 저장(수정) |
+| `POST /api/monitor/start` · `/stop` | 모니터 시작 · 중지 |
+| `POST /api/sample` | 즉시 한 번 샘플 |
+
+---
+
 ## 백그라운드 자동 실행 (launchd)
 
 로그인 후 자동으로 계속 측정하도록 LaunchAgent를 등록합니다.
@@ -183,6 +219,7 @@ sqlite3 ~/.netusage/netusage.db \
 | `monitor [--once] [--interval N] [--verbose]` | 측정 루프 (launchd가 이걸 실행) |
 | `report --by <키> [--since/--until] [--format table\|json]` | 집계 리포트 |
 | `export [--format csv\|json] [--since/--until] [-o FILE]` | 원본 샘플 내보내기 |
+| `web [--host H] [--port P] [--no-monitor] [--open]` | 웹 포탈(동작/수정/조회) 실행 |
 | `networks` | 설정된 `named_networks`와 현재 식별 결과 |
 | `install [--print]` | launchd LaunchAgent(+기본 설정) 생성 |
 | `config` | 유효 설정/경로 출력 |

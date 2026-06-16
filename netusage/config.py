@@ -40,6 +40,14 @@ def load_config(path: str = DEFAULT_CONFIG_PATH) -> Dict[str, Any]:
     return config
 
 
+def save_config(data: Dict[str, Any], path: str = DEFAULT_CONFIG_PATH) -> None:
+    """설정 dict 를 JSON 파일로 저장한다(웹 포탈의 '수정'에서 사용)."""
+    os.makedirs(os.path.dirname(path) or ".", exist_ok=True)
+    with open(path, "w", encoding="utf-8") as fh:
+        json.dump(data, fh, ensure_ascii=False, indent=2)
+        fh.write("\n")
+
+
 def write_default_config(path: str = DEFAULT_CONFIG_PATH) -> bool:
     """설정 파일이 없으면 기본 설정을 생성한다. 생성했으면 True."""
     if os.path.exists(path):

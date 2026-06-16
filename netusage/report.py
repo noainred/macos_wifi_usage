@@ -54,11 +54,11 @@ def format_table(
     return "\n".join(out)
 
 
-def format_json(
+def build_payload(
     rows: List[Dict[str, Any]], total: Tuple[int, int]
-) -> str:
-    """집계 결과를 JSON 으로. 사람이 읽기 좋은 필드를 함께 넣는다."""
-    payload = {
+) -> Dict[str, Any]:
+    """집계 결과를 dict 로 만든다(JSON/웹 API 공용). 사람이 읽기 좋은 필드 포함."""
+    return {
         "rows": [
             {
                 "label": r.get("label"),
@@ -68,6 +68,7 @@ def format_json(
                 "total_bytes": (r.get("rx") or 0) + (r.get("tx") or 0),
                 "rx_human": human_bytes(r.get("rx") or 0),
                 "tx_human": human_bytes(r.get("tx") or 0),
+                "total_human": human_bytes((r.get("rx") or 0) + (r.get("tx") or 0)),
                 "samples": r.get("samples", 0),
                 "first_ts": r.get("first_ts"),
                 "last_ts": r.get("last_ts"),
@@ -82,9 +83,16 @@ def format_json(
             "total_bytes": total[0] + total[1],
             "rx_human": human_bytes(total[0]),
             "tx_human": human_bytes(total[1]),
+            "total_human": human_bytes(total[0] + total[1]),
         },
     }
-    return json.dumps(payload, ensure_ascii=False, indent=2)
+
+
+def format_json(
+    rows: List[Dict[str, Any]], total: Tuple[int, int]
+) -> str:
+    """집계 결과를 JSON 문자열로."""
+    return json.dumps(build_payload(rows, total), ensure_ascii=False, indent=2)
 
 
 def samples_to_csv(samples: List[Dict[str, Any]]) -> str:
